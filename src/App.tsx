@@ -1,0 +1,43 @@
+import { useMemo, useState } from 'react';
+import { Search, SlidersHorizontal, CalendarDays, Bell, Plus, ChevronDown, MoreHorizontal, LayoutDashboard, Users, Settings, Sparkles, PanelLeftClose, X, Check, Paperclip, MessageCircle, Clock3, Flag, ArrowUpRight, ListFilter, ChevronsUpDown } from 'lucide-react';
+
+type Task = {id:number; title:string; stage:string; color:string; start:number; span:number; owner:string; initials:string; status:'Готово'|'В работе'|'Не начато'|'Просрочено'; progress:number};
+const tasks:Task[] = [
+ {id:1,title:'Сформировать концепцию лагеря',stage:'Концепция',color:'#7557ed',start:0,span:4,owner:'Анна Морозова',initials:'АМ',status:'Готово',progress:100},
+ {id:2,title:'Подготовить тексты лендинга',stage:'Тексты',color:'#f2b938',start:2,span:5,owner:'Саша Волков',initials:'СВ',status:'В работе',progress:64},
+ {id:3,title:'Визуальная концепция',stage:'Дизайн',color:'#ff6e73',start:4,span:5,owner:'Маша Ким',initials:'МК',status:'В работе',progress:38},
+ {id:4,title:'Дизайн лендинга',stage:'Дизайн',color:'#ff6e73',start:7,span:6,owner:'Маша Ким',initials:'МК',status:'Не начато',progress:0},
+ {id:5,title:'Разработка лендинга',stage:'Разработка',color:'#4f8df7',start:11,span:7,owner:'Илья Левин',initials:'ИЛ',status:'Не начато',progress:0},
+ {id:6,title:'Подготовить PR-материалы',stage:'PR',color:'#a564e8',start:13,span:5,owner:'Лера Новик',initials:'ЛН',status:'Не начато',progress:0},
+ {id:7,title:'Тестирование и запуск',stage:'Запуск',color:'#25b884',start:18,span:5,owner:'Илья Левин',initials:'ИЛ',status:'Не начато',progress:0},
+];
+const days = Array.from({length:23},(_,i)=>({d:i+8,w:['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i%7]}));
+
+export function App(){
+ const [query,setQuery]=useState(''); const [active,setActive]=useState<Task|null>(null); const [view,setView]=useState('Гант'); const [toast,setToast]=useState(false); const [sidebar,setSidebar]=useState(true);
+ const filtered=useMemo(()=>tasks.filter(t=>(t.title+t.owner+t.stage).toLowerCase().includes(query.toLowerCase())),[query]);
+ const complete=tasks.filter(t=>t.status==='Готово').length;
+ const save=()=>{setToast(true);setTimeout(()=>setToast(false),2200)};
+ return <div className="app">
+  {sidebar&&<aside><div className="brand"><div className="brandmark">B</div><span>Blink Camp</span><button className="icon close-side" onClick={()=>setSidebar(false)}><PanelLeftClose size={18}/></button></div>
+   <nav><p>РАБОЧЕЕ ПРОСТРАНСТВО</p><button className="nav active"><LayoutDashboard/>План проекта</button><button className="nav"><Users/>Команда <span>8</span></button><button className="nav"><Bell/>Уведомления <b>3</b></button></nav>
+   <div className="filters"><div className="filter-title">БЫСТРЫЕ ФИЛЬТРЫ <ListFilter size={14}/></div><label><input type="checkbox"/> Только мои</label><label><input type="checkbox"/> Просроченные <i className="red-dot"/></label><label><input type="checkbox"/> Критический путь</label><label><input type="checkbox"/> Ближайшие 3 дня</label></div>
+   <div className="project-card"><div><Sparkles size={18}/><b>Общий прогресс</b></div><strong>42%</strong><div className="meter"><i/></div><small>14 из 33 задач выполнено</small></div>
+   <button className="profile"><span>АК</span><div><b>Алексей Крылов</b><small>Администратор</small></div><ChevronsUpDown size={15}/></button>
+  </aside>}
+  <main>{!sidebar&&<button className="open-side" onClick={()=>setSidebar(true)}>B</button>}
+   <header><div><div className="crumb">Проекты <b>/</b> Летний лагерь</div><h1>Летний лагерь ‘26 <span>🏕️</span></h1><p>Запуск летней кампании · 8 июня — 30 июня</p></div><div className="header-actions"><button className="icon"><Bell size={20}/><i/></button><button className="today"><CalendarDays/> Сегодня</button><button className="primary" onClick={()=>{setActive({...tasks[0],id:99,title:'Новая задача'});}}><Plus/> Новая задача</button></div></header>
+   <section className="stats"><Stat icon="↗" label="Всего задач" value="33" note="+4 за неделю" c="purple"/><Stat icon="◷" label="В работе" value="8" note="24% от всех" c="blue"/><Stat icon="✓" label="Выполнено" value={String(complete+13)} note="42% прогресса" c="green"/><Stat icon="!" label="Просрочено" value="3" note="Требуют внимания" c="red"/><Stat icon="♟" label="Команда" value="8" note="Все на связи" c="orange"/></section>
+   <section className="workspace"><div className="toolbar"><div className="views">{['Гант','Канбан','Список','По людям'].map(x=><button className={view===x?'selected':''} onClick={()=>setView(x)} key={x}>{x}</button>)}</div><div className="tools"><div className="search"><Search/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Найти задачу..."/></div><button><SlidersHorizontal/> Фильтры <span>2</span></button><button>Неделя <ChevronDown/></button><button className="icon"><MoreHorizontal/></button></div></div>
+    {view==='Гант'?<div className="gantt"><div className="gantt-head"><div className="task-col"><span>ЗАДАЧА</span><span>СТАТУС</span></div><div className="dates">{days.map((x,i)=><div className={(i===7?'today-date ':'')+(x.w==='Сб'||x.w==='Вс'?'weekend':'')} key={i}><b>{x.d}</b><small>{x.w}</small></div>)}</div></div>
+     <div className="rows">{filtered.map((t,ri)=><div className="row" key={t.id}><div className="task-info" onClick={()=>setActive(t)}><i style={{background:t.color}}/><div className="avatar" style={{background:t.color+'22',color:t.color}}>{t.initials}</div><div><b>{t.title}</b><small>{t.stage} · {t.owner}</small></div><Status s={t.status}/></div><div className="timeline">{days.map((_,i)=><i className={(i===7?'today-line ':'')+(i%7>4?'weekend':'')} key={i}/>)}<button className="bar" onClick={()=>setActive(t)} style={{left:`calc(${t.start} * 100% / 23 + 5px)`,width:`calc(${t.span} * 100% / 23 - 10px)`,background:t.color}}><span>{t.title}</span><b>{t.initials}</b></button></div></div>)}</div>
+     <div className="legend"><span><i className="today-legend"/>Сегодня, 15 июня</span><span><i className="critical"/>Критический путь</span><small>Перетащите задачу, чтобы изменить сроки</small></div></div>:<EmptyView view={view}/>} 
+   </section>
+  </main>
+  {active&&<><div className="scrim" onClick={()=>setActive(null)}/><div className="drawer"><div className="drawer-head"><span style={{background:active.color+'20',color:active.color}}>{active.stage}</span><button className="icon" onClick={()=>setActive(null)}><X/></button></div><input className="task-title" defaultValue={active.title} onBlur={save}/><p className="desc">Подготовить и согласовать материалы с командой. Финальную версию передать всем участникам проекта.</p><div className="properties"><label><Flag/> Статус <button><Status s={active.status}/><ChevronDown/></button></label><label><Users/> Ответственный <button><span className="mini-avatar">{active.initials}</span>{active.owner}<ChevronDown/></button></label><label><CalendarDays/> Даты <button>12 — 17 июня<ChevronDown/></button></label><label><Clock3/> Прогресс <div className="progress"><i style={{width:active.progress+'%'}}/></div><b>{active.progress}%</b></label></div><hr/><div className="drawer-tabs"><button className="on">Чеклист <span>2/4</span></button><button>Комментарии <span>3</span></button><button>История</button></div><div className="checklist">{['Собрать исходные материалы','Подготовить первый вариант','Получить комментарии','Внести финальные правки'].map((x,i)=><label key={x} className={i<2?'done':''}><input type="checkbox" defaultChecked={i<2} onChange={save}/><span>{i<2&&<Check/>}</span>{x}</label>)}</div><button className="add-item"><Plus/> Добавить пункт</button><div className="comments"><div><MessageCircle/> <b>Последний комментарий</b></div><p>Выглядит отлично! Давайте только проверим финальные даты с командой.</p><small><span>МК</span> Маша · 2 часа назад</small></div><button className="attachment"><Paperclip/> Добавить вложение</button><div className="autosave"><Check/> Все изменения сохранены автоматически</div></div></>}
+  {toast&&<div className="toast"><span>✓</span><div><b>Изменения сохранены</b><small>Данные проекта обновлены</small></div></div>}
+ </div>
+}
+function Stat({icon,label,value,note,c}:{icon:string,label:string,value:string,note:string,c:string}){return <div className={'stat '+c}><div className="stat-icon">{icon}</div><div><small>{label}</small><strong>{value}</strong><p>{note}</p></div><ArrowUpRight/></div>}
+function Status({s}:{s:Task['status']}){return <span className={'status '+s.replace(' ','-').toLowerCase()}><i/>{s}</span>}
+function EmptyView({view}:{view:string}){return <div className="empty"><div>✦</div><h2>Представление «{view}»</h2><p>Задачи уже сгруппированы и готовы к работе.</p><button>Открыть задачи</button></div>}
