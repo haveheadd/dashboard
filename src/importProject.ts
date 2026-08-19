@@ -1,0 +1,30 @@
+import * as XLSX from 'xlsx';
+
+type Status='Готово'|'В работе'|'Не начато'|'Просрочено';
+export type ImportedTask={id:number;title:string;stage:string;color:string;start:number;span:number;owner:string;initials:string;status:Status;progress:number};
+
+const colors=['#7557ed','#f2b938','#ff6e73','#4f8df7','#a564e8','#25b884'];
+const pick=(row:Record<string,unknown>,names:string[])=>{const key=Object.keys(row).find(k=>names.includes(k.trim().toLowerCase()));return key?row[key]:undefined};
+const number=(value:unknown,fallback:number)=>{const result=Number(value);return Number.isFinite(result)?result:fallback};
+const status=(value:unknown):Status=>{const text=String(value||'').toLowerCase();if(text.includes('готов')||text==='done')return'Готово';if(text.includes('работ')||text.includes('progress'))return'В работе';if(text.includes('проср')||text.includes('overdue'))return'Просрочено';return'Не начато'};
+const initials=(owner:string)=>owner.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'—';
+
+function normalize(rows:Record<string,unknown>[]):ImportedTask[]{
+ const result=rows.map((row,index)=>{const title=String(pick(row,['задача','название','task','title','name'])||'').trim();if(!title)return null;const owner=String(pick(row,['ответственный','исполнитель','owner','assignee'])||'Не назначен').trim();const stage=String(pick(row,['этап','группа','stage','phase'])||'Без этапа').trim();const progress=Math.max(0,Math.min(100,number(pick(row,['прогресс','progress','готовность']),0)));return{id:index+1,title,stage,color:colors[index%colors.length],start:Math.max(0,number(pick(row,['начало','старт','start','start day']),index)),span:Math.max(1,number(pick(row,['длительность','дни','duration','span']),3)),owner,initials:initials(owner),status:status(pick(row,['статус','status'])),progress}}).filter(Boolean) as ImportedTask[];
+ if(!result.length)throw new Error('Не найдены задачи. Добавьте колонку «Задача» или «Название».');
+ return result;
+}
+
+export async function parseProjectFile(file:File):Promise<ImportedTask[]>{
+ const extension=file.name.split('.').pop()?.toLowerCase();
+ if(extension==='json'){const data=JSON.parse(await file.text());return normalize(Array.isArray(data)?data:data.tasks||[])}
+ if(!['xlsx','xls','csv'].includes(extension||''))throw new Error('Поддерживаются файлы XLSX, XLS, CSV и JSON.');
+ if(extension==='csv'){
+  const text=new TextDecoder('utf-8').decode(await file.arrayBuffer()).replace(/^\uFEFF/,'');const lines=text.split(/\r?\n/).filter(Boolean);const delimiter=(lines[0].match(/;/g)||[]).length>(lines[0].match(/,/g)||[]).length?';':',';const headers=lines.shift()?.split(delimiter).map(x=>x.trim().replace(/^"|"$/g,''))||[];
+  return normalize(lines.map(line=>Object.fromEntries(line.split(delimiter).map((value,index)=>[headers[index],value.trim().replace(/^"|"$/g,'')]))));
+ }
+ const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+ const sheet=workbook.Sheets[workbook.SheetNames.find(name=>/гант|gantt/i.test(name))||workbook.SheetNames[0]];
+ if(!sheet)throw new Error('В файле нет листов.');
+ return normalize(XLSX.utils.sheet_to_json<Record<string,unknown>>(sheet,{defval:''}));
+}
