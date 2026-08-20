@@ -6,7 +6,7 @@ export type ImportedTask={id:number;title:string;stage:string;color:string;start
 const colors=['#7557ed','#f2b938','#ff6e73','#4f8df7','#a564e8','#25b884'];
 const pick=(row:Record<string,unknown>,names:string[])=>{const key=Object.keys(row).find(k=>names.includes(k.trim().toLowerCase()));return key?row[key]:undefined};
 const number=(value:unknown,fallback:number)=>{const result=Number(value);return Number.isFinite(result)?result:fallback};
-const status=(value:unknown):Status=>{const text=String(value||'').toLowerCase();if(text.includes('готов')||text==='done')return'Готово';if(text.includes('работ')||text.includes('progress'))return'В работе';if(text.includes('проср')||text.includes('overdue'))return'Просрочено';return'Не начато'};
+const status=(value:unknown):Status=>{const text=String(value||'').toLowerCase();if(text.includes('готов')||text==='done')return'Готово';if(text.includes('работ')||text.includes('progress')||text.includes('согласован')||text.includes('ревью'))return'В работе';if(text.includes('проср')||text.includes('overdue'))return'Просрочено';return'Не начато'};
 const initials=(owner:string)=>owner.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'—';
 
 function normalize(rows:Record<string,unknown>[]):ImportedTask[]{
@@ -17,6 +17,11 @@ function normalize(rows:Record<string,unknown>[]):ImportedTask[]{
 
 function normalizeMatrix(rows:unknown[][]):ImportedTask[]{
  const clean=rows.map(row=>row.map(value=>typeof value==='string'?value.trim():value)).filter(row=>row.some(Boolean));
+ if(String(clean[0]?.[0]||'').toLowerCase()==='этап'){
+  let stage='Без этапа';const projectRows:Record<string,unknown>[]=[];
+  for(const row of clean.slice(2)){const title=String(row[0]||'').trim();const owner=String(row[1]||'').trim();const deadline=String(row[2]||'').trim();if(!title)continue;if(!owner&&!deadline){stage=title;continue}projectRows.push({Задача:title,Этап:stage,Ответственный:owner||'Не назначен',Статус:deadline,Начало:projectRows.length,Длительность:3,Прогресс:/готово/i.test(deadline)?100:0});}
+  return normalize(projectRows);
+ }
  const aliases=['задача','название','task','title','name'];
  const headerIndex=clean.findIndex(row=>row.some(value=>aliases.includes(String(value).toLowerCase())));
  if(headerIndex>=0){const headers=clean[headerIndex].map(value=>String(value));return normalize(clean.slice(headerIndex+1).map(row=>Object.fromEntries(headers.map((header,index)=>[header,row[index]??'']))));}
