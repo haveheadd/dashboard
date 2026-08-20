@@ -15,6 +15,16 @@ function normalize(rows:Record<string,unknown>[]):ImportedTask[]{
  return result;
 }
 
+function normalizeMatrix(rows:unknown[][]):ImportedTask[]{
+ const clean=rows.map(row=>row.map(value=>typeof value==='string'?value.trim():value)).filter(row=>row.some(Boolean));
+ const aliases=['задача','название','task','title','name'];
+ const headerIndex=clean.findIndex(row=>row.some(value=>aliases.includes(String(value).toLowerCase())));
+ if(headerIndex>=0){const headers=clean[headerIndex].map(value=>String(value));return normalize(clean.slice(headerIndex+1).map(row=>Object.fromEntries(headers.map((header,index)=>[header,row[index]??'']))));}
+ let stage='Без этапа';const candidates:Record<string,unknown>[]=[];
+ for(const row of clean){const values=row.map(value=>String(value??'').trim());const textCells=values.filter(Boolean);if(!textCells.length)continue;if(textCells.length===1){stage=textCells[0];continue}const title=values[0]||values[1];if(!title||/дата|понедельник|вторник|среда|четверг|пятница|суббота|воскресенье/i.test(title))continue;candidates.push({Задача:title,Этап:stage,Ответственный:values[1]||'Не назначен',Начало:candidates.length,Длительность:3});}
+ return normalize(candidates);
+}
+
 export async function parseProjectFile(file:File):Promise<ImportedTask[]>{
  const extension=file.name.split('.').pop()?.toLowerCase();
  if(extension==='json'){const data=JSON.parse(await file.text());return normalize(Array.isArray(data)?data:data.tasks||[])}
@@ -23,8 +33,9 @@ export async function parseProjectFile(file:File):Promise<ImportedTask[]>{
   const text=new TextDecoder('utf-8').decode(await file.arrayBuffer()).replace(/^\uFEFF/,'');const lines=text.split(/\r?\n/).filter(Boolean);const delimiter=(lines[0].match(/;/g)||[]).length>(lines[0].match(/,/g)||[]).length?';':',';const headers=lines.shift()?.split(delimiter).map(x=>x.trim().replace(/^"|"$/g,''))||[];
   return normalize(lines.map(line=>Object.fromEntries(line.split(delimiter).map((value,index)=>[headers[index],value.trim().replace(/^"|"$/g,'')]))));
  }
- const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+ const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true,cellStyles:true});
  const sheet=workbook.Sheets[workbook.SheetNames.find(name=>/гант|gantt/i.test(name))||workbook.SheetNames[0]];
  if(!sheet)throw new Error('В файле нет листов.');
- return normalize(XLSX.utils.sheet_to_json<Record<string,unknown>>(sheet,{defval:''}));
+ const matrix=XLSX.utils.sheet_to_json<unknown[]>(sheet,{header:1,defval:''});
+ return normalizeMatrix(matrix);
 }
