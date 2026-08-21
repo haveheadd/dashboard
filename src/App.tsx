@@ -1,46 +1,1360 @@
-import {useEffect,useMemo,useRef,useState} from 'react';
-import {Archive,ArrowLeft,ArrowRight,CalendarDays,Check,ChevronDown,Copy,FileText,FolderOpen,LayoutDashboard,Link2,ListTodo,MoreHorizontal,Palette,Plus,Search,Settings,Trash2,UploadCloud,Users,X} from 'lucide-react';
-import mammoth from 'mammoth/mammoth.browser';
-import {parseProjectFile,type ImportedTask} from './importProject';
-import {demoProjects,type Asset,type Project,type Source,type WikiPage} from './hubData';
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Archive,
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  Copy,
+  FileText,
+  FolderOpen,
+  LayoutDashboard,
+  Link2,
+  ListTodo,
+  MoreHorizontal,
+  Palette,
+  Plus,
+  Search,
+  Settings,
+  Trash2,
+  UploadCloud,
+  Users,
+  X,
+} from "lucide-react";
+import { parseProjectFile, type ImportedTask } from "./importProject";
+import {
+  demoProjects,
+  type Asset,
+  type Project,
+  type Source,
+  type WikiPage,
+} from "./hubData";
+import { extractDocxProjectData } from "./docxProject";
 
-type Screen='projects'|'project';type Section='Обзор'|'Таймлайн'|'Задачи'|'Вики'|'Ассеты'|'Люди'|'Источники';
-type Draft={name:string;description:string;emoji:string;deadline:string;tasks:ImportedTask[];wiki:WikiPage[];figmaUrl:string;sources:Source[]};
-const emptyDraft=():Draft=>({name:'',description:'',emoji:'◈',deadline:'',tasks:[],wiki:[],figmaUrl:'',sources:[]});
-const nav:Section[]=['Обзор','Таймлайн','Задачи','Вики','Ассеты','Люди','Источники'];
+type Screen = "projects" | "project";
+type Section =
+  | "Обзор"
+  | "Таймлайн"
+  | "Задачи"
+  | "Вики"
+  | "Ассеты"
+  | "Люди"
+  | "Источники";
+type Draft = {
+  name: string;
+  description: string;
+  emoji: string;
+  deadline: string;
+  tasks: ImportedTask[];
+  wiki: WikiPage[];
+  assets: Asset[];
+  figmaUrl: string;
+  sources: Source[];
+};
+const emptyDraft = (): Draft => ({
+  name: "",
+  description: "",
+  emoji: "◈",
+  deadline: "",
+  tasks: [],
+  wiki: [],
+  assets: [],
+  figmaUrl: "",
+  sources: [],
+});
+const nav: Section[] = [
+  "Обзор",
+  "Таймлайн",
+  "Задачи",
+  "Вики",
+  "Ассеты",
+  "Люди",
+  "Источники",
+];
 
-export function App(){
- const[projects,setProjects]=useState<Project[]>(()=>{try{return JSON.parse(localStorage.getItem('project-hub-v2')||'null')||demoProjects}catch{return demoProjects}});const[screen,setScreen]=useState<Screen>('projects');const[projectId,setProjectId]=useState('summer-camp');const[section,setSection]=useState<Section>('Обзор');const[search,setSearch]=useState('');const[onboarding,setOnboarding]=useState(false);const[step,setStep]=useState(1);const[draft,setDraft]=useState<Draft>(emptyDraft);const[busy,setBusy]=useState('');const[message,setMessage]=useState('');
- useEffect(()=>localStorage.setItem('project-hub-v2',JSON.stringify(projects)),[projects]);
- const project=projects.find(p=>p.id===projectId)||projects[0];const visible=projects.filter(p=>!p.archived&&(p.name+p.description).toLowerCase().includes(search.toLowerCase()));
- const open=(id:string)=>{setProjectId(id);setScreen('project');setSection('Обзор')};const startCreate=()=>{setDraft(emptyDraft());setStep(1);setMessage('');setOnboarding(true)};
- const duplicate=(p:Project)=>setProjects(all=>[...all,{...p,id:`${p.id}-copy-${Date.now()}`,name:`${p.name} — копия`,updated:'только что'}]);const archive=(id:string)=>setProjects(all=>all.map(p=>p.id===id?{...p,archived:true}:p));const remove=(id:string)=>setProjects(all=>all.filter(p=>p.id!==id));
- const updateProject=(id:string,patch:Partial<Project>)=>setProjects(all=>all.map(p=>p.id===id?{...p,...patch,updated:'только что'}:p));
- const finish=()=>{const id=`project-${Date.now()}`;const assets:Asset[]=draft.wiki.flatMap(page=>page.content.join(' ').match(/(?:лендинг|баннер|логотип|стикер|подарок|экран|страниц[аыу]|видео|3D[- ]?модель)/gi)||[]).filter((x,i,a)=>a.findIndex(y=>y.toLowerCase()===x.toLowerCase())===i).map((name,i)=>({id:`asset-${i}`,name,type:'Предложено из описания',status:'Не найден',taskIds:[],wikiIds:[]}));const next:Project={id,name:draft.name||'Новый проект',emoji:draft.emoji||'◈',description:draft.description||'Без описания',deadline:draft.deadline,progress:0,updated:'только что',tasks:draft.tasks,wiki:draft.wiki,assets,sources:draft.sources,figmaUrl:draft.figmaUrl};setProjects(all=>[...all,next]);setOnboarding(false);open(id)};
- return <div className="hub-app">{screen==='projects'?<ProjectsHome projects={visible} search={search} setSearch={setSearch} open={open} create={startCreate} duplicate={duplicate} archive={archive} remove={remove}/>:<ProjectShell project={project} section={section} setSection={setSection} back={()=>setScreen('projects')} update={patch=>updateProject(project.id,patch)}/>} {onboarding&&<Onboarding step={step} setStep={setStep} draft={draft} setDraft={setDraft} busy={busy} setBusy={setBusy} message={message} setMessage={setMessage} close={()=>setOnboarding(false)} finish={finish}/>}</div>
+export function App() {
+  const [projects, setProjects] = useState<Project[]>(() => {
+    try {
+      return (
+        JSON.parse(localStorage.getItem("project-hub-v2") || "null") ||
+        demoProjects
+      );
+    } catch {
+      return demoProjects;
+    }
+  });
+  const [screen, setScreen] = useState<Screen>("projects");
+  const [projectId, setProjectId] = useState("summer-camp");
+  const [section, setSection] = useState<Section>("Обзор");
+  const [search, setSearch] = useState("");
+  const [onboarding, setOnboarding] = useState(false);
+  const [step, setStep] = useState(1);
+  const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [busy, setBusy] = useState("");
+  const [message, setMessage] = useState("");
+  useEffect(
+    () => localStorage.setItem("project-hub-v2", JSON.stringify(projects)),
+    [projects],
+  );
+  const project = projects.find((p) => p.id === projectId) || projects[0];
+  const visible = projects.filter(
+    (p) =>
+      !p.archived &&
+      (p.name + p.description).toLowerCase().includes(search.toLowerCase()),
+  );
+  const open = (id: string) => {
+    setProjectId(id);
+    setScreen("project");
+    setSection("Обзор");
+  };
+  const startCreate = () => {
+    setDraft(emptyDraft());
+    setStep(1);
+    setMessage("");
+    setOnboarding(true);
+  };
+  const duplicate = (p: Project) =>
+    setProjects((all) => [
+      ...all,
+      {
+        ...p,
+        id: `${p.id}-copy-${Date.now()}`,
+        name: `${p.name} — копия`,
+        updated: "только что",
+      },
+    ]);
+  const archive = (id: string) =>
+    setProjects((all) =>
+      all.map((p) => (p.id === id ? { ...p, archived: true } : p)),
+    );
+  const remove = (id: string) =>
+    setProjects((all) => all.filter((p) => p.id !== id));
+  const updateProject = (id: string, patch: Partial<Project>) =>
+    setProjects((all) =>
+      all.map((p) =>
+        p.id === id ? { ...p, ...patch, updated: "только что" } : p,
+      ),
+    );
+  const finish = () => {
+    const id = `project-${Date.now()}`;
+    const suggestions: Asset[] = draft.wiki
+      .flatMap(
+        (page) =>
+          page.content
+            .join(" ")
+            .match(
+              /(?:лендинг|баннер|логотип|стикер|подарок|экран|страниц[аыу]|видео|3D[- ]?модель)/gi,
+            ) || [],
+      )
+      .filter(
+        (x, i, a) =>
+          a.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i,
+      )
+      .filter(
+        (name) =>
+          !draft.assets.some(
+            (a) => a.name.toLowerCase() === name.toLowerCase(),
+          ),
+      )
+      .map((name, i) => ({
+        id: `suggested-${i}`,
+        name,
+        type: "Предложено из описания",
+        status: "Не найден",
+        taskIds: [],
+        wikiIds: [],
+      }));
+    const next: Project = {
+      id,
+      name: draft.name || "Новый проект",
+      emoji: draft.emoji || "◈",
+      description: draft.description || "Без описания",
+      deadline: draft.deadline,
+      progress: 0,
+      updated: "только что",
+      tasks: draft.tasks,
+      wiki: draft.wiki,
+      assets: [...draft.assets, ...suggestions],
+      sources: draft.sources,
+      figmaUrl: draft.figmaUrl,
+    };
+    setProjects((all) => [...all, next]);
+    setOnboarding(false);
+    open(id);
+  };
+  return (
+    <div className="hub-app">
+      {screen === "projects" ? (
+        <ProjectsHome
+          projects={visible}
+          search={search}
+          setSearch={setSearch}
+          open={open}
+          create={startCreate}
+          duplicate={duplicate}
+          archive={archive}
+          remove={remove}
+        />
+      ) : (
+        <ProjectShell
+          project={project}
+          section={section}
+          setSection={setSection}
+          back={() => setScreen("projects")}
+          update={(patch) => updateProject(project.id, patch)}
+        />
+      )}{" "}
+      {onboarding && (
+        <Onboarding
+          step={step}
+          setStep={setStep}
+          draft={draft}
+          setDraft={setDraft}
+          busy={busy}
+          setBusy={setBusy}
+          message={message}
+          setMessage={setMessage}
+          close={() => setOnboarding(false)}
+          finish={finish}
+        />
+      )}
+    </div>
+  );
 }
 
-function ProjectsHome({projects,search,setSearch,open,create,duplicate,archive,remove}:{projects:Project[];search:string;setSearch:(x:string)=>void;open:(id:string)=>void;create:()=>void;duplicate:(p:Project)=>void;archive:(id:string)=>void;remove:(id:string)=>void}){return <main className="projects-home"><header className="global-header"><div className="hub-brand"><span>B</span><b>Project Hub</b></div><div className="global-search"><Search/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск по всем проектам…"/></div><button className="new-project" onClick={create}><Plus/>Создать проект</button></header><section className="projects-content"><div className="page-heading"><div><p className="eyebrow">РАБОЧЕЕ ПРОСТРАНСТВО</p><h1>Мои проекты</h1><p>Все запуски, кампании и внутренние проекты в одном месте.</p></div><span>{projects.length} активных</span></div><div className="project-grid">{projects.map(p=><article className="project-card-v2" key={p.id}><div className="card-top"><div className="project-cover">{p.emoji}</div><ProjectMenu project={p} duplicate={duplicate} archive={archive} remove={remove}/></div><button className="card-main" onClick={()=>open(p.id)}><small>ГЛАВНЫЙ ДЕДЛАЙН · {formatDate(p.deadline)}</small><h2>{p.name}</h2><p>{p.description}</p><div className="progress-label"><span>Готовность</span><b>{p.progress}%</b></div><div className="project-progress"><i style={{width:`${p.progress}%`}}/></div><div className="card-metrics"><span><b>{p.tasks.filter(t=>t.status!=='Готово').length}</b> открытых задач</span><span className={p.tasks.some(t=>t.status==='Просрочено')?'danger':''}><b>{p.tasks.filter(t=>t.status==='Просрочено').length}</b> просрочено</span></div></button><footer>Обновлено: {p.updated}<ArrowRight/></footer></article>)}<button className="create-card" onClick={create}><span><Plus/></span><h2>Создать проект</h2><p>Гант, описание и Figma можно добавить сразу или позже.</p></button></div></section></main>}
-function ProjectMenu({project,duplicate,archive,remove}:{project:Project;duplicate:(p:Project)=>void;archive:(id:string)=>void;remove:(id:string)=>void}){const[open,setOpen]=useState(false);return <div className="menu-wrap"><button className="icon-button" onClick={()=>setOpen(!open)}><MoreHorizontal/></button>{open&&<div className="card-menu"><button onClick={()=>duplicate(project)}><Copy/>Дублировать</button><button><Settings/>Настройки</button><button onClick={()=>archive(project.id)}><Archive/>Архивировать</button><button className="danger" onClick={()=>remove(project.id)}><Trash2/>Удалить</button></div>}</div>}
-
-function ProjectShell({project,section,setSection,back,update}:{project:Project;section:Section;setSection:(s:Section)=>void;back:()=>void;update:(patch:Partial<Project>)=>void}){
- const gantt=useRef<HTMLInputElement>(null);const docs=useRef<HTMLInputElement>(null);const[notice,setNotice]=useState('');const[loading,setLoading]=useState('');
- const importGantt=async(file?:File)=>{if(!file)return;setLoading('gantt');setNotice('');try{const tasks=await parseProjectFile(file);update({tasks,sources:[...project.sources.filter(s=>s.kind!=='gantt'),{id:`gantt-${Date.now()}`,kind:'gantt',name:file.name,status:`${tasks.length} задач · подключено`,updated:'сейчас'}]});setSection('Таймлайн');setNotice(`Гант загружен: ${tasks.length} задач`)}catch(e){setNotice(`Ошибка загрузки Ганта: ${e instanceof Error?e.message:'файл не распознан'}`)}finally{setLoading('');if(gantt.current)gantt.current.value=''}};
- const importDocs=async(files?:FileList|null)=>{if(!files?.length)return;setLoading('docs');setNotice('');try{const pages:WikiPage[]=[];const nextSources=[...project.sources];for(const file of Array.from(files)){let text='';if(/\.docx$/i.test(file.name))text=(await mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()})).value;else if(/\.(txt|md)$/i.test(file.name))text=await file.text();else text=`Файл ${file.name} добавлен в проект.`;pages.push(...buildWiki(text,pages.length));nextSources.push({id:`doc-${Date.now()}-${nextSources.length}`,kind:'description',name:file.name,status:'Добавлен в проект',updated:'сейчас'})}update({wiki:[...project.wiki,...pages],sources:nextSources});setSection('Вики');setNotice(`Файлы загружены: ${files.length}; добавлено разделов Вики: ${pages.length}`)}catch(e){setNotice(`Ошибка загрузки документов: ${e instanceof Error?e.message:'файл не распознан'}`)}finally{setLoading('');if(docs.current)docs.current.value=''}};
- return <div className="project-shell"><aside className="project-sidebar"><button className="back-projects" onClick={back}><ArrowLeft/>Все проекты</button><div className="side-title"><span>{project.emoji}</span><div><b>{project.name}</b><small>{project.description}</small></div></div><nav>{nav.map(item=><button key={item} className={section===item?'active':''} onClick={()=>setSection(item)}>{icon(item)}{item}</button>)}</nav><div className="source-health"><span>Источники</span><b>{project.sources.length}/4</b><div><i style={{width:`${project.sources.length/4*100}%`}}/></div></div></aside><main className="project-main"><header><div><p className="eyebrow">PROJECT HUB · {section.toUpperCase()}</p><h1>{project.name}</h1></div><div className="project-upload-actions"><button onClick={()=>gantt.current?.click()}><UploadCloud/>{loading==='gantt'?'Загружаю…':'Загрузить Гант'}</button><button className="secondary-upload" onClick={()=>docs.current?.click()}><FileText/>{loading==='docs'?'Загружаю…':'Добавить файлы'}</button><input ref={gantt} hidden type="file" accept=".xlsx,.xls,.csv,.json" onChange={e=>importGantt(e.target.files?.[0])}/><input ref={docs} hidden multiple type="file" accept=".docx,.pdf,.txt,.md" onChange={e=>importDocs(e.target.files)}/></div></header>{notice&&<div className={notice.startsWith('Ошибка')?'project-notice error':'project-notice'}>{notice}</div>}{section==='Обзор'&&<Overview project={project}/>} {section==='Таймлайн'&&<Timeline project={project}/>} {section==='Задачи'&&<Tasks project={project}/>} {section==='Вики'&&<Wiki project={project}/>} {section==='Ассеты'&&<Assets project={project}/>} {section==='Люди'&&<People project={project}/>} {section==='Источники'&&<Sources project={project}/>}</main></div>
+function ProjectsHome({
+  projects,
+  search,
+  setSearch,
+  open,
+  create,
+  duplicate,
+  archive,
+  remove,
+}: {
+  projects: Project[];
+  search: string;
+  setSearch: (x: string) => void;
+  open: (id: string) => void;
+  create: () => void;
+  duplicate: (p: Project) => void;
+  archive: (id: string) => void;
+  remove: (id: string) => void;
+}) {
+  return (
+    <main className="projects-home">
+      <header className="global-header">
+        <div className="hub-brand">
+          <span>B</span>
+          <b>Project Hub</b>
+        </div>
+        <div className="global-search">
+          <Search />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по всем проектам…"
+          />
+        </div>
+        <button className="new-project" onClick={create}>
+          <Plus />
+          Создать проект
+        </button>
+      </header>
+      <section className="projects-content">
+        <div className="page-heading">
+          <div>
+            <p className="eyebrow">РАБОЧЕЕ ПРОСТРАНСТВО</p>
+            <h1>Мои проекты</h1>
+            <p>Все запуски, кампании и внутренние проекты в одном месте.</p>
+          </div>
+          <span>{projects.length} активных</span>
+        </div>
+        <div className="project-grid">
+          {projects.map((p) => (
+            <article className="project-card-v2" key={p.id}>
+              <div className="card-top">
+                <div className="project-cover">{p.emoji}</div>
+                <ProjectMenu
+                  project={p}
+                  duplicate={duplicate}
+                  archive={archive}
+                  remove={remove}
+                />
+              </div>
+              <button className="card-main" onClick={() => open(p.id)}>
+                <small>ГЛАВНЫЙ ДЕДЛАЙН · {formatDate(p.deadline)}</small>
+                <h2>{p.name}</h2>
+                <p>{p.description}</p>
+                <div className="progress-label">
+                  <span>Готовность</span>
+                  <b>{p.progress}%</b>
+                </div>
+                <div className="project-progress">
+                  <i style={{ width: `${p.progress}%` }} />
+                </div>
+                <div className="card-metrics">
+                  <span>
+                    <b>{p.tasks.filter((t) => t.status !== "Готово").length}</b>{" "}
+                    открытых задач
+                  </span>
+                  <span
+                    className={
+                      p.tasks.some((t) => t.status === "Просрочено")
+                        ? "danger"
+                        : ""
+                    }
+                  >
+                    <b>
+                      {p.tasks.filter((t) => t.status === "Просрочено").length}
+                    </b>{" "}
+                    просрочено
+                  </span>
+                </div>
+              </button>
+              <footer>
+                Обновлено: {p.updated}
+                <ArrowRight />
+              </footer>
+            </article>
+          ))}
+          <button className="create-card" onClick={create}>
+            <span>
+              <Plus />
+            </span>
+            <h2>Создать проект</h2>
+            <p>Гант, описание и Figma можно добавить сразу или позже.</p>
+          </button>
+        </div>
+      </section>
+    </main>
+  );
 }
-function Overview({project}: {project:Project}){const attention=project.tasks.filter(t=>t.status==='Просрочено'||t.status==='В работе');return <div className="project-view"><section className="hero-overview"><div><span>ОБЩИЙ ПРОГРЕСС</span><strong>{project.progress}%</strong><div><i style={{width:`${project.progress}%`}}/></div></div><div><span>ГЛАВНЫЙ ДЕДЛАЙН</span><strong>{formatDate(project.deadline)}</strong><small>Осталось {daysUntil(project.deadline)} дней</small></div><div><span>ГОТОВНОСТЬ МАТЕРИАЛОВ</span><strong>{project.assets.filter(a=>a.status==='Готово').length}/{project.assets.length}</strong><small>{project.assets.filter(a=>a.status==='Не найден').length} не найдено</small></div></section><div className="overview-grid"><section className="panel-v2"><div className="panel-heading"><h2>Требует внимания</h2><b>{attention.length}</b></div>{attention.map(t=><div className="attention-item" key={t.id}><i style={{background:t.color}}/><div><b>{t.title}</b><small>{t.stage} · {t.owner}</small></div><span>{t.status}</span></div>)}</section><section className="panel-v2"><div className="panel-heading"><h2>Связанные сущности</h2><b>{project.assets.length}</b></div>{project.assets.slice(0,4).map(a=><div className="entity-row" key={a.id}><span>{a.type==='Экран'?'▣':'◇'}</span><div><b>{a.name}</b><small>{a.status} · {a.taskIds.length} задач</small></div>{a.figmaUrl&&<a href={a.figmaUrl} target="_blank">Figma ↗</a>}</div>)}</section></div></div>}
-function Timeline({project}:{project:Project}){return <div className="project-view"><div className="view-title"><h2>Таймлайн</h2><p>Этапы, задачи, сроки и ответственные из плана проекта.</p></div>{project.tasks.length?<div className="timeline-table">{project.tasks.map(t=><div className="timeline-row" key={t.id}><div><b>{t.title}</b><small>{t.stage} · {t.owner}</small></div><span>{t.status}</span><div className="mini-track"><i style={{marginLeft:`${Math.min(t.start*3,70)}%`,width:`${Math.max(t.span*3,8)}%`,background:t.color}}/></div></div>)}</div>:<Empty title="План ещё не загружен"/>}</div>}
-function Tasks({project}:{project:Project}){return <div className="project-view"><div className="view-title"><h2>Задачи</h2><p>{project.tasks.length} задач во всех этапах.</p></div><div className="task-list-v2">{project.tasks.map(t=><article key={t.id}><i style={{background:t.color}}/><div><b>{t.title}</b><small>{t.stage}</small></div><span>{t.owner}</span><span>{t.status}</span><b>{t.progress}%</b></article>)}</div></div>}
-function Wiki({project}:{project:Project}){const[selected,setSelected]=useState(project.wiki[0]?.id);const page=project.wiki.find(w=>w.id===selected);return <div className="project-view wiki-layout-v2"><aside><h3>Вики проекта</h3>{project.wiki.map(w=><button className={selected===w.id?'active':''} onClick={()=>setSelected(w.id)} key={w.id}>{w.title}</button>)}</aside><article>{page?<><p className="eyebrow">СОБРАНО ИЗ ОПИСАНИЯ ПРОЕКТА</p><h1>{page.title}</h1>{page.content.map((p,i)=><p key={i}>{p}</p>)}</>:<Empty title="Вики пока пуста"/>}</article></div>}
-function Assets({project}:{project:Project}){return <div className="project-view"><div className="view-title"><h2>Ассеты и сущности</h2><p>Связь: описание → Figma → задача → ответственный → дедлайн.</p></div><div className="asset-grid-v2">{project.assets.map(a=><article key={a.id}><div className="asset-head"><span>◇</span><b className={a.status==='Не найден'?'missing':''}>{a.status}</b></div><small>{a.type}</small><h3>{a.name}</h3><div className="asset-links"><span>📋 {a.taskIds.length} задач</span><span>📚 {a.wikiIds.length} страниц</span></div>{a.owner&&<p>{a.owner} · {a.deadline}</p>}{a.figmaUrl?<a href={a.figmaUrl} target="_blank">Открыть в Figma ↗</a>:<button>Найти макет</button>}</article>)}</div></div>}
-function People({project}:{project:Project}){const people=[...new Set(project.tasks.map(t=>t.owner).filter(x=>x&&x!=='Не назначен'))];return <div className="project-view"><div className="view-title"><h2>Люди</h2><p>Ответственные из задач проекта.</p></div><div className="people-grid-v2">{people.map(name=><article key={name}><span>{initials(name)}</span><div><h3>{name}</h3><p>{project.tasks.filter(t=>t.owner===name).length} задач</p></div></article>)}</div></div>}
-function Sources({project}:{project:Project}){const all=[...project.sources];return <div className="project-view"><div className="view-title"><h2>Источники проекта</h2><p>Обновляйте Гант, описание, Figma и реестр ассетов.</p></div><div className="sources-list">{all.map(s=><article key={s.id}><span>{sourceIcon(s.kind)}</span><div><small>{sourceLabel(s.kind)}</small><h3>{s.name}</h3><p>{s.status} · обновлено {s.updated}</p></div><button>Обновить</button></article>)}{!all.some(s=>s.kind==='assets')&&<article className="source-empty"><span>◇</span><div><small>РЕЕСТР АССЕТОВ</small><h3>Не загружен</h3><p>Можно создать автоматически или импортировать Excel / CSV.</p></div><button>Добавить</button></article>}</div><div className="diff-card"><b>При обновлении источника</b><p>Project Hub покажет новые задачи, изменённые сроки, удалённые элементы и новых ответственных — и применит изменения только после подтверждения.</p></div></div>}
+function ProjectMenu({
+  project,
+  duplicate,
+  archive,
+  remove,
+}: {
+  project: Project;
+  duplicate: (p: Project) => void;
+  archive: (id: string) => void;
+  remove: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="menu-wrap">
+      <button className="icon-button" onClick={() => setOpen(!open)}>
+        <MoreHorizontal />
+      </button>
+      {open && (
+        <div className="card-menu">
+          <button onClick={() => duplicate(project)}>
+            <Copy />
+            Дублировать
+          </button>
+          <button>
+            <Settings />
+            Настройки
+          </button>
+          <button onClick={() => archive(project.id)}>
+            <Archive />
+            Архивировать
+          </button>
+          <button className="danger" onClick={() => remove(project.id)}>
+            <Trash2 />
+            Удалить
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
-function Onboarding({step,setStep,draft,setDraft,busy,setBusy,message,setMessage,close,finish}:{step:number;setStep:(n:number)=>void;draft:Draft;setDraft:(d:Draft)=>void;busy:string;setBusy:(x:string)=>void;message:string;setMessage:(x:string)=>void;close:()=>void;finish:()=>void}){const gantt=useRef<HTMLInputElement>(null);const docs=useRef<HTMLInputElement>(null);const importGantt=async(file?:File)=>{if(!file)return;setBusy('gantt');setMessage('');try{const tasks=await parseProjectFile(file);setDraft({...draft,tasks,sources:[...draft.sources.filter(s=>s.kind!=='gantt'),{id:'gantt',kind:'gantt',name:file.name,status:`${tasks.length} задач найдено`,updated:'сейчас'}]});setMessage(`Найдено: ${tasks.length} задач · ${new Set(tasks.map(t=>t.stage)).size} этапов · ${new Set(tasks.map(t=>t.owner)).size} ответственных`)}catch(e){setMessage(`Ошибка: ${e instanceof Error?e.message:'файл не распознан'}`)}finally{setBusy('');if(gantt.current)gantt.current.value=''}};const importDocs=async(files?:FileList|null)=>{if(!files?.length)return;setBusy('docs');const pages:WikiPage[]=[];const sources=[...draft.sources.filter(s=>s.kind!=='description')];try{for(const file of Array.from(files)){let text='';if(file.name.endsWith('.docx'))text=(await mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()})).value;else if(/\.(txt|md)$/i.test(file.name))text=await file.text();else text=`Источник ${file.name} добавлен. Для полного анализа PDF требуется серверный обработчик.`;pages.push(...buildWiki(text,pages.length));sources.push({id:`doc-${Date.now()}-${pages.length}`,kind:'description',name:file.name,status:'Проанализирован',updated:'сейчас'})}setDraft({...draft,wiki:pages,sources});setMessage(`Собрана структура Вики: ${pages.length} разделов`)}catch(e){setMessage(`Ошибка: ${e instanceof Error?e.message:'документ не распознан'}`)}finally{setBusy('');if(docs.current)docs.current.value=''}};return <div className="onboarding-backdrop"><div className="onboarding"><header><div><span>НОВЫЙ ПРОЕКТ</span><b>Шаг {step} из 4</b></div><button onClick={close}><X/></button></header><div className="stepper">{[1,2,3,4].map(n=><i className={n<=step?'active':''} key={n}/>)}</div><main>{step===1&&<div className="step-content"><p className="eyebrow">ОСНОВНАЯ ИНФОРМАЦИЯ</p><h1>Расскажите о проекте</h1><p>Все поля, кроме названия, можно заполнить позже.</p><label>Название проекта<input autoFocus value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})} placeholder="Например, Осенний запуск"/></label><label>Короткое описание<textarea value={draft.description} onChange={e=>setDraft({...draft,description:e.target.value})} placeholder="Что запускаем и зачем?"/></label><div className="form-row"><label>Эмодзи<input value={draft.emoji} onChange={e=>setDraft({...draft,emoji:e.target.value})}/></label><label>Главная дата<input type="date" value={draft.deadline} onChange={e=>setDraft({...draft,deadline:e.target.value})}/></label></div></div>}{step===2&&<div className="step-content"><p className="eyebrow">ПЛАН РАБОТ</p><h1>📅 Загрузить план проекта</h1><p>XLSX, XLS или CSV. Мы попробуем распознать колонки автоматически.</p><button className="upload-zone" onClick={()=>gantt.current?.click()}><UploadCloud/><b>{busy==='gantt'?'Анализируем…':'Выбрать Гант'}</b><small>или перетащите файл сюда</small></button><input hidden ref={gantt} type="file" accept=".xlsx,.xls,.csv" onChange={e=>importGantt(e.target.files?.[0])}/>{message&&<div className={message.startsWith('Ошибка')?'import-result error':'import-result'}>{message}</div>}{draft.tasks.length>0&&<GanttPreview tasks={draft.tasks}/>}<button className="manual-link">Создать план вручную</button></div>}{step===3&&<div className="step-content"><p className="eyebrow">ОПИСАНИЕ ПРОЕКТА</p><h1>📚 Создать Вики из материалов</h1><p>Загрузите несколько DOCX, PDF, TXT или Markdown. Структура строится из содержания.</p><button className="upload-zone" onClick={()=>docs.current?.click()}><FileText/><b>{busy==='docs'?'Анализируем…':'Добавить документы'}</b><small>можно выбрать несколько файлов</small></button><input hidden multiple ref={docs} type="file" accept=".docx,.pdf,.txt,.md" onChange={e=>importDocs(e.target.files)}/>{message&&<div className={message.startsWith('Ошибка')?'import-result error':'import-result'}>{message}</div>}{draft.wiki.length>0&&<WikiPreview pages={draft.wiki} update={wiki=>setDraft({...draft,wiki})}/>}<label className="paste-text">Или вставьте текст<textarea placeholder="Вводные проекта…" onBlur={e=>{if(e.target.value.trim())setDraft({...draft,wiki:buildWiki(e.target.value,0)})}}/></label></div>}{step===4&&<div className="step-content"><p className="eyebrow">ДИЗАЙН</p><h1>🎨 Подключить Figma</h1><p>Добавьте ссылку сейчас или подключите официальный доступ позже.</p><label>Ссылка на Figma<input value={draft.figmaUrl} onChange={e=>setDraft({...draft,figmaUrl:e.target.value})} placeholder="https://www.figma.com/design/…"/></label><div className="oauth-box"><Palette/><div><b>Чтение страниц, фреймов и nodes</b><p>Для приватных файлов нужен Figma OAuth. Project Hub не просит секретные API-токены в обычном поле.</p></div><button disabled>Подключить OAuth</button></div><div className="creation-summary"><h3>Проект готов к созданию</h3><span>📅 {draft.tasks.length} задач</span><span>📚 {draft.wiki.length} разделов Вики</span><span>🎨 {draft.figmaUrl?'Figma добавлена':'Figma можно подключить позже'}</span></div></div>}</main><footer><button onClick={()=>step===1?close():setStep(step-1)}><ArrowLeft/>{step===1?'Отмена':'Назад'}</button>{step<4?<button className="primary" disabled={step===1&&!draft.name.trim()} onClick={()=>{setMessage('');setStep(step+1)}}>{step===1?'К материалам':'Продолжить'}<ArrowRight/></button>:<button className="primary" onClick={finish}><Check/>Создать Project Hub</button>}</footer></div></div>}
-function GanttPreview({tasks}:{tasks:ImportedTask[]}){return <div className="preview-card"><h3>Предпросмотр импорта</h3><div className="preview-stats"><span><b>{tasks.length}</b> задач</span><span><b>{new Set(tasks.map(t=>t.stage)).size}</b> этапов</span><span><b>{new Set(tasks.map(t=>t.owner)).size}</b> ответственных</span></div><div className="mapping"><b>Колонка Excel</b><b>Поле Project Hub</b><span>Задача / Этап / Title</span><span>Название задачи</span><span>Ответственный / Owner</span><span>Ответственный</span><span>Дедлайн / Status</span><span>Статус или срок</span></div><small>Если сопоставление неточное, его можно изменить после создания проекта.</small></div>}
-function WikiPreview({pages,update}:{pages:WikiPage[];update:(p:WikiPage[])=>void}){return <div className="preview-card"><h3>Мы собрали структуру Вики</h3><div className="wiki-preview">{pages.map((p,i)=><div key={p.id}><span>⋮⋮</span><input value={p.title} onChange={e=>update(pages.map(x=>x.id===p.id?{...x,title:e.target.value}:x))}/><button onClick={()=>update(pages.filter(x=>x.id!==p.id))}><X/></button></div>)}</div><button onClick={()=>update([...pages,{id:`wiki-${Date.now()}`,title:'Новый раздел',content:[]}])}><Plus/>Добавить раздел</button></div>}
-function Empty({title}:{title:string}){return <div className="empty-v2"><FolderOpen/><h2>{title}</h2><p>Источник можно добавить в любой момент.</p></div>}
+function ProjectShell({
+  project,
+  section,
+  setSection,
+  back,
+  update,
+}: {
+  project: Project;
+  section: Section;
+  setSection: (s: Section) => void;
+  back: () => void;
+  update: (patch: Partial<Project>) => void;
+}) {
+  const gantt = useRef<HTMLInputElement>(null);
+  const docs = useRef<HTMLInputElement>(null);
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState("");
+  const importGantt = async (file?: File) => {
+    if (!file) return;
+    setLoading("gantt");
+    setNotice("");
+    try {
+      const tasks = await parseProjectFile(file);
+      update({
+        tasks,
+        sources: [
+          ...project.sources.filter((s) => s.kind !== "gantt"),
+          {
+            id: `gantt-${Date.now()}`,
+            kind: "gantt",
+            name: file.name,
+            status: `${tasks.length} задач · подключено`,
+            updated: "сейчас",
+          },
+        ],
+      });
+      setSection("Таймлайн");
+      setNotice(`Гант загружен: ${tasks.length} задач`);
+    } catch (e) {
+      setNotice(
+        `Ошибка загрузки Ганта: ${e instanceof Error ? e.message : "файл не распознан"}`,
+      );
+    } finally {
+      setLoading("");
+      if (gantt.current) gantt.current.value = "";
+    }
+  };
+  const importDocs = async (files?: FileList | null) => {
+    if (!files?.length) return;
+    setLoading("docs");
+    setNotice("");
+    try {
+      const pages: WikiPage[] = [];
+      const importedAssets: Asset[] = [];
+      const nextSources = [...project.sources];
+      let comments = 0;
+      for (const file of Array.from(files)) {
+        if (/\.docx$/i.test(file.name)) {
+          const parsed = await extractDocxProjectData(file, (text, offset) =>
+            buildWiki(text, offset),
+          );
+          pages.push(...parsed.wiki);
+          importedAssets.push(...parsed.assets);
+          comments += parsed.commentCount;
+        } else {
+          const text = /\.(txt|md)$/i.test(file.name)
+            ? await file.text()
+            : `Файл ${file.name} добавлен в проект.`;
+          pages.push(...buildWiki(text, pages.length));
+        }
+        nextSources.push({
+          id: `doc-${Date.now()}-${nextSources.length}`,
+          kind: "description",
+          name: file.name,
+          status: "Добавлен в проект",
+          updated: "сейчас",
+        });
+      }
+      const assets = [...project.assets, ...importedAssets].filter(
+        (item, index, all) =>
+          all.findIndex(
+            (x) =>
+              (x.figmaUrl && x.figmaUrl === item.figmaUrl) ||
+              (!x.figmaUrl && x.name === item.name),
+          ) === index,
+      );
+      update({
+        wiki: [...project.wiki, ...pages],
+        assets,
+        sources: nextSources,
+      });
+      setSection("Ассеты");
+      setNotice(
+        `Загружено: ${files.length} файл · ${importedAssets.length} ссылок на материалы · ${comments} комментариев`,
+      );
+    } catch (e) {
+      setNotice(
+        `Ошибка загрузки документов: ${e instanceof Error ? e.message : "файл не распознан"}`,
+      );
+    } finally {
+      setLoading("");
+      if (docs.current) docs.current.value = "";
+    }
+  };
+  return (
+    <div className="project-shell">
+      <aside className="project-sidebar">
+        <button className="back-projects" onClick={back}>
+          <ArrowLeft />
+          Все проекты
+        </button>
+        <div className="side-title">
+          <span>{project.emoji}</span>
+          <div>
+            <b>{project.name}</b>
+            <small>{project.description}</small>
+          </div>
+        </div>
+        <nav>
+          {nav.map((item) => (
+            <button
+              key={item}
+              className={section === item ? "active" : ""}
+              onClick={() => setSection(item)}
+            >
+              {icon(item)}
+              {item}
+            </button>
+          ))}
+        </nav>
+        <div className="source-health">
+          <span>Источники</span>
+          <b>{project.sources.length}/4</b>
+          <div>
+            <i style={{ width: `${(project.sources.length / 4) * 100}%` }} />
+          </div>
+        </div>
+      </aside>
+      <main className="project-main">
+        <header>
+          <div>
+            <p className="eyebrow">PROJECT HUB · {section.toUpperCase()}</p>
+            <h1>{project.name}</h1>
+          </div>
+          <div className="project-upload-actions">
+            <button onClick={() => gantt.current?.click()}>
+              <UploadCloud />
+              {loading === "gantt" ? "Загружаю…" : "Загрузить Гант"}
+            </button>
+            <button
+              className="secondary-upload"
+              onClick={() => docs.current?.click()}
+            >
+              <FileText />
+              {loading === "docs" ? "Загружаю…" : "Добавить файлы"}
+            </button>
+            <input
+              ref={gantt}
+              hidden
+              type="file"
+              accept=".xlsx,.xls,.csv,.json"
+              onChange={(e) => importGantt(e.target.files?.[0])}
+            />
+            <input
+              ref={docs}
+              hidden
+              multiple
+              type="file"
+              accept=".docx,.pdf,.txt,.md"
+              onChange={(e) => importDocs(e.target.files)}
+            />
+          </div>
+        </header>
+        {notice && (
+          <div
+            className={
+              notice.startsWith("Ошибка")
+                ? "project-notice error"
+                : "project-notice"
+            }
+          >
+            {notice}
+          </div>
+        )}
+        {section === "Обзор" && <Overview project={project} />}{" "}
+        {section === "Таймлайн" && <Timeline project={project} />}{" "}
+        {section === "Задачи" && <Tasks project={project} />}{" "}
+        {section === "Вики" && <Wiki project={project} />}{" "}
+        {section === "Ассеты" && <Assets project={project} />}{" "}
+        {section === "Люди" && <People project={project} />}{" "}
+        {section === "Источники" && <Sources project={project} />}
+      </main>
+    </div>
+  );
+}
+function Overview({ project }: { project: Project }) {
+  const attention = project.tasks.filter(
+    (t) =>
+      t.status === "Просрочено" ||
+      t.status === "В работе" ||
+      t.status === "На согласовании",
+  );
+  return (
+    <div className="project-view">
+      <section className="hero-overview">
+        <div>
+          <span>ОБЩИЙ ПРОГРЕСС</span>
+          <strong>{project.progress}%</strong>
+          <div>
+            <i style={{ width: `${project.progress}%` }} />
+          </div>
+        </div>
+        <div>
+          <span>ГЛАВНЫЙ ДЕДЛАЙН</span>
+          <strong>{formatDate(project.deadline)}</strong>
+          <small>Осталось {daysUntil(project.deadline)} дней</small>
+        </div>
+        <div>
+          <span>ГОТОВНОСТЬ МАТЕРИАЛОВ</span>
+          <strong>
+            {project.assets.filter((a) => a.status === "Готово").length}/
+            {project.assets.length}
+          </strong>
+          <small>
+            {project.assets.filter((a) => a.status === "Не найден").length} не
+            найдено
+          </small>
+        </div>
+      </section>
+      <div className="overview-grid">
+        <section className="panel-v2">
+          <div className="panel-heading">
+            <h2>Требует внимания</h2>
+            <b>{attention.length}</b>
+          </div>
+          {attention.map((t) => (
+            <div className="attention-item" key={t.id}>
+              <i style={{ background: t.color }} />
+              <div>
+                <b>{t.title}</b>
+                <small>
+                  {t.stage} · {t.owner}
+                  {t.deadline ? ` · срок: ${t.deadline}` : ""}
+                </small>
+              </div>
+              <span>{t.status}</span>
+            </div>
+          ))}
+        </section>
+        <section className="panel-v2">
+          <div className="panel-heading">
+            <h2>Связанные сущности</h2>
+            <b>{project.assets.length}</b>
+          </div>
+          {project.assets.slice(0, 4).map((a) => (
+            <div className="entity-row" key={a.id}>
+              <span>{a.type === "Экран" ? "▣" : "◇"}</span>
+              <div>
+                <b>{a.name}</b>
+                <small>
+                  {a.status} · {a.taskIds.length} задач
+                </small>
+              </div>
+              {a.figmaUrl && (
+                <a href={a.figmaUrl} target="_blank">
+                  Figma ↗
+                </a>
+              )}
+            </div>
+          ))}
+        </section>
+      </div>
+    </div>
+  );
+}
+function Timeline({ project }: { project: Project }) {
+  return (
+    <div className="project-view">
+      <div className="view-title">
+        <h2>Таймлайн</h2>
+        <p>Этапы, задачи, сроки и ответственные из плана проекта.</p>
+      </div>
+      {project.tasks.length ? (
+        <div className="timeline-table">
+          {project.tasks.map((t) => (
+            <div className="timeline-row" key={t.id}>
+              <div>
+                <b>{t.title}</b>
+                <small>
+                  {t.stage} · {t.owner}
+                  {t.deadline ? ` · срок: ${t.deadline}` : ""}
+                </small>
+              </div>
+              <span>{t.status}</span>
+              <div className="mini-track">
+                <i
+                  style={{
+                    marginLeft: `${Math.min(t.start * 3, 70)}%`,
+                    width: `${Math.max(t.span * 3, 8)}%`,
+                    background: t.color,
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Empty title="План ещё не загружен" />
+      )}
+    </div>
+  );
+}
+function Tasks({ project }: { project: Project }) {
+  return (
+    <div className="project-view">
+      <div className="view-title">
+        <h2>Задачи</h2>
+        <p>{project.tasks.length} задач во всех этапах.</p>
+      </div>
+      <div className="task-list-v2">
+        {project.tasks.map((t) => (
+          <article key={t.id}>
+            <i style={{ background: t.color }} />
+            <div>
+              <b>{t.title}</b>
+              <small>
+                {t.stage}
+                {t.deadline ? ` · срок: ${t.deadline}` : ""}
+              </small>
+            </div>
+            <span>{t.owner}</span>
+            <span>{t.status}</span>
+            <b>{t.progress}%</b>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+function Wiki({ project }: { project: Project }) {
+  const [selected, setSelected] = useState(project.wiki[0]?.id);
+  const page = project.wiki.find((w) => w.id === selected);
+  return (
+    <div className="project-view wiki-layout-v2">
+      <aside>
+        <h3>Вики проекта</h3>
+        {project.wiki.map((w) => (
+          <button
+            className={selected === w.id ? "active" : ""}
+            onClick={() => setSelected(w.id)}
+            key={w.id}
+          >
+            {w.title}
+          </button>
+        ))}
+      </aside>
+      <article>
+        {page ? (
+          <>
+            <p className="eyebrow">СОБРАНО ИЗ ОПИСАНИЯ ПРОЕКТА</p>
+            <h1>{page.title}</h1>
+            {page.content.map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
+          </>
+        ) : (
+          <Empty title="Вики пока пуста" />
+        )}
+      </article>
+    </div>
+  );
+}
+function Assets({ project }: { project: Project }) {
+  return (
+    <div className="project-view">
+      <div className="view-title">
+        <h2>Ассеты и сущности</h2>
+        <p>Связь: описание → Figma → задача → ответственный → дедлайн.</p>
+      </div>
+      <div className="asset-grid-v2">
+        {project.assets.map((a) => (
+          <article key={a.id}>
+            <div className="asset-head">
+              <span>◇</span>
+              <b className={a.status === "Не найден" ? "missing" : ""}>
+                {a.status}
+              </b>
+            </div>
+            <small>{a.type}</small>
+            <h3>{a.name}</h3>
+            <div className="asset-links">
+              <span>📋 {a.taskIds.length} задач</span>
+              <span>📚 {a.wikiIds.length} страниц</span>
+            </div>
+            {a.owner && (
+              <p>
+                {a.owner} · {a.deadline}
+              </p>
+            )}
+          {a.figmaUrl ? (
+            <a href={a.figmaUrl} target="_blank">
+              Открыть материал ↗
+            </a>
+            ) : (
+              <button>Найти макет</button>
+            )}
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+function People({ project }: { project: Project }) {
+  const people = [
+    ...new Set(
+      project.tasks.map((t) => t.owner).filter((x) => x && x !== "Не назначен"),
+    ),
+  ];
+  return (
+    <div className="project-view">
+      <div className="view-title">
+        <h2>Люди</h2>
+        <p>Ответственные из задач проекта.</p>
+      </div>
+      <div className="people-grid-v2">
+        {people.map((name) => (
+          <article key={name}>
+            <span>{initials(name)}</span>
+            <div>
+              <h3>{name}</h3>
+              <p>
+                {project.tasks.filter((t) => t.owner === name).length} задач
+              </p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+function Sources({ project }: { project: Project }) {
+  const all = [...project.sources];
+  return (
+    <div className="project-view">
+      <div className="view-title">
+        <h2>Источники проекта</h2>
+        <p>Обновляйте Гант, описание, Figma и реестр ассетов.</p>
+      </div>
+      <div className="sources-list">
+        {all.map((s) => (
+          <article key={s.id}>
+            <span>{sourceIcon(s.kind)}</span>
+            <div>
+              <small>{sourceLabel(s.kind)}</small>
+              <h3>{s.name}</h3>
+              <p>
+                {s.status} · обновлено {s.updated}
+              </p>
+            </div>
+            <button>Обновить</button>
+          </article>
+        ))}
+        {!all.some((s) => s.kind === "assets") && (
+          <article className="source-empty">
+            <span>◇</span>
+            <div>
+              <small>РЕЕСТР АССЕТОВ</small>
+              <h3>Не загружен</h3>
+              <p>Можно создать автоматически или импортировать Excel / CSV.</p>
+            </div>
+            <button>Добавить</button>
+          </article>
+        )}
+      </div>
+      <div className="diff-card">
+        <b>При обновлении источника</b>
+        <p>
+          Project Hub покажет новые задачи, изменённые сроки, удалённые элементы
+          и новых ответственных — и применит изменения только после
+          подтверждения.
+        </p>
+      </div>
+    </div>
+  );
+}
 
-function buildWiki(text:string,offset:number){const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(!lines.length)return[];const headings=lines.map((line,i)=>({line,i})).filter(x=>x.line.length<80&&!/[.!?]$/.test(x.line)).slice(0,12);if(headings.length<2){const chunks=[];for(let i=0;i<lines.length;i+=8)chunks.push({id:`wiki-${offset}-${i}`,title:i===0?'О проекте':`Раздел ${chunks.length+1}`,content:lines.slice(i,i+8)});return chunks}return headings.map((h,i)=>({id:`wiki-${offset}-${i}`,title:h.line.replace(/^#+\s*/,''),content:lines.slice(h.i+1,headings[i+1]?.i||Math.min(h.i+9,lines.length))})).filter(p=>p.content.length)}
-function icon(item:Section){return item==='Обзор'?<LayoutDashboard/>:item==='Таймлайн'?<CalendarDays/>:item==='Задачи'?<ListTodo/>:item==='Вики'?<FileText/>:item==='Ассеты'?<Palette/>:item==='Люди'?<Users/>:<Link2/>}function sourceIcon(kind:Source['kind']){return kind==='gantt'?'📅':kind==='description'?'📚':kind==='figma'?'🎨':'◇'}function sourceLabel(kind:Source['kind']){return kind==='gantt'?'ПЛАН ПРОЕКТА':kind==='description'?'ОПИСАНИЕ ПРОЕКТА':kind==='figma'?'FIGMA':'РЕЕСТР АССЕТОВ'}function formatDate(v:string){if(!v)return'Не задан';return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long'}).format(new Date(v))}function daysUntil(v:string){if(!v)return 0;return Math.max(0,Math.ceil((new Date(v).getTime()-Date.now())/86400000))}function initials(name:string){return name.split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()}
+function Onboarding({
+  step,
+  setStep,
+  draft,
+  setDraft,
+  busy,
+  setBusy,
+  message,
+  setMessage,
+  close,
+  finish,
+}: {
+  step: number;
+  setStep: (n: number) => void;
+  draft: Draft;
+  setDraft: (d: Draft) => void;
+  busy: string;
+  setBusy: (x: string) => void;
+  message: string;
+  setMessage: (x: string) => void;
+  close: () => void;
+  finish: () => void;
+}) {
+  const gantt = useRef<HTMLInputElement>(null);
+  const docs = useRef<HTMLInputElement>(null);
+  const importGantt = async (file?: File) => {
+    if (!file) return;
+    setBusy("gantt");
+    setMessage("");
+    try {
+      const tasks = await parseProjectFile(file);
+      setDraft({
+        ...draft,
+        tasks,
+        sources: [
+          ...draft.sources.filter((s) => s.kind !== "gantt"),
+          {
+            id: "gantt",
+            kind: "gantt",
+            name: file.name,
+            status: `${tasks.length} задач найдено`,
+            updated: "сейчас",
+          },
+        ],
+      });
+      setMessage(
+        `Найдено: ${tasks.length} задач · ${new Set(tasks.map((t) => t.stage)).size} этапов · ${new Set(tasks.map((t) => t.owner)).size} ответственных`,
+      );
+    } catch (e) {
+      setMessage(
+        `Ошибка: ${e instanceof Error ? e.message : "файл не распознан"}`,
+      );
+    } finally {
+      setBusy("");
+      if (gantt.current) gantt.current.value = "";
+    }
+  };
+  const importDocs = async (files?: FileList | null) => {
+    if (!files?.length) return;
+    setBusy("docs");
+    const pages: WikiPage[] = [];
+    const assets: Asset[] = [];
+    const sources = [...draft.sources.filter((s) => s.kind !== "description")];
+    let comments = 0;
+    try {
+      for (const file of Array.from(files)) {
+        if (/\.docx$/i.test(file.name)) {
+          const parsed = await extractDocxProjectData(file, buildWiki);
+          pages.push(...parsed.wiki);
+          assets.push(...parsed.assets);
+          comments += parsed.commentCount;
+        } else {
+          const text = /\.(txt|md)$/i.test(file.name)
+            ? await file.text()
+            : `Источник ${file.name} добавлен. Для полного анализа PDF требуется серверный обработчик.`;
+          pages.push(...buildWiki(text, pages.length));
+        }
+        sources.push({
+          id: `doc-${Date.now()}-${pages.length}`,
+          kind: "description",
+          name: file.name,
+          status: "Проанализирован",
+          updated: "сейчас",
+        });
+      }
+      setDraft({ ...draft, wiki: pages, assets, sources });
+      setMessage(
+        `Перенесено: ${pages.length} разделов · ${assets.length} ссылок · ${comments} комментариев`,
+      );
+    } catch (e) {
+      setMessage(
+        `Ошибка: ${e instanceof Error ? e.message : "документ не распознан"}`,
+      );
+    } finally {
+      setBusy("");
+      if (docs.current) docs.current.value = "";
+    }
+  };
+  return (
+    <div className="onboarding-backdrop">
+      <div className="onboarding">
+        <header>
+          <div>
+            <span>НОВЫЙ ПРОЕКТ</span>
+            <b>Шаг {step} из 4</b>
+          </div>
+          <button onClick={close}>
+            <X />
+          </button>
+        </header>
+        <div className="stepper">
+          {[1, 2, 3, 4].map((n) => (
+            <i className={n <= step ? "active" : ""} key={n} />
+          ))}
+        </div>
+        <main>
+          {step === 1 && (
+            <div className="step-content">
+              <p className="eyebrow">ОСНОВНАЯ ИНФОРМАЦИЯ</p>
+              <h1>Расскажите о проекте</h1>
+              <p>Все поля, кроме названия, можно заполнить позже.</p>
+              <label>
+                Название проекта
+                <input
+                  autoFocus
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  placeholder="Например, Осенний запуск"
+                />
+              </label>
+              <label>
+                Короткое описание
+                <textarea
+                  value={draft.description}
+                  onChange={(e) =>
+                    setDraft({ ...draft, description: e.target.value })
+                  }
+                  placeholder="Что запускаем и зачем?"
+                />
+              </label>
+              <div className="form-row">
+                <label>
+                  Эмодзи
+                  <input
+                    value={draft.emoji}
+                    onChange={(e) =>
+                      setDraft({ ...draft, emoji: e.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Главная дата
+                  <input
+                    type="date"
+                    value={draft.deadline}
+                    onChange={(e) =>
+                      setDraft({ ...draft, deadline: e.target.value })
+                    }
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+          {step === 2 && (
+            <div className="step-content">
+              <p className="eyebrow">ПЛАН РАБОТ</p>
+              <h1>📅 Загрузить план проекта</h1>
+              <p>
+                XLSX, XLS или CSV. Мы попробуем распознать колонки
+                автоматически.
+              </p>
+              <button
+                className="upload-zone"
+                onClick={() => gantt.current?.click()}
+              >
+                <UploadCloud />
+                <b>{busy === "gantt" ? "Анализируем…" : "Выбрать Гант"}</b>
+                <small>или перетащите файл сюда</small>
+              </button>
+              <input
+                hidden
+                ref={gantt}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={(e) => importGantt(e.target.files?.[0])}
+              />
+              {message && (
+                <div
+                  className={
+                    message.startsWith("Ошибка")
+                      ? "import-result error"
+                      : "import-result"
+                  }
+                >
+                  {message}
+                </div>
+              )}
+              {draft.tasks.length > 0 && <GanttPreview tasks={draft.tasks} />}
+              <button className="manual-link">Создать план вручную</button>
+            </div>
+          )}
+          {step === 3 && (
+            <div className="step-content">
+              <p className="eyebrow">ОПИСАНИЕ ПРОЕКТА</p>
+              <h1>📚 Создать Вики из материалов</h1>
+              <p>
+                Загрузите несколько DOCX, PDF, TXT или Markdown. Структура
+                строится из содержания.
+              </p>
+              <button
+                className="upload-zone"
+                onClick={() => docs.current?.click()}
+              >
+                <FileText />
+                <b>{busy === "docs" ? "Анализируем…" : "Добавить документы"}</b>
+                <small>можно выбрать несколько файлов</small>
+              </button>
+              <input
+                hidden
+                multiple
+                ref={docs}
+                type="file"
+                accept=".docx,.pdf,.txt,.md"
+                onChange={(e) => importDocs(e.target.files)}
+              />
+              {message && (
+                <div
+                  className={
+                    message.startsWith("Ошибка")
+                      ? "import-result error"
+                      : "import-result"
+                  }
+                >
+                  {message}
+                </div>
+              )}
+              {draft.wiki.length > 0 && (
+                <WikiPreview
+                  pages={draft.wiki}
+                  update={(wiki) => setDraft({ ...draft, wiki })}
+                />
+              )}
+              <label className="paste-text">
+                Или вставьте текст
+                <textarea
+                  placeholder="Вводные проекта…"
+                  onBlur={(e) => {
+                    if (e.target.value.trim())
+                      setDraft({
+                        ...draft,
+                        wiki: buildWiki(e.target.value, 0),
+                      });
+                  }}
+                />
+              </label>
+            </div>
+          )}
+          {step === 4 && (
+            <div className="step-content">
+              <p className="eyebrow">ДИЗАЙН</p>
+              <h1>🎨 Подключить Figma</h1>
+              <p>
+                Добавьте ссылку сейчас или подключите официальный доступ позже.
+              </p>
+              <label>
+                Ссылка на Figma
+                <input
+                  value={draft.figmaUrl}
+                  onChange={(e) =>
+                    setDraft({ ...draft, figmaUrl: e.target.value })
+                  }
+                  placeholder="https://www.figma.com/design/…"
+                />
+              </label>
+              <div className="oauth-box">
+                <Palette />
+                <div>
+                  <b>Чтение страниц, фреймов и nodes</b>
+                  <p>
+                    Для приватных файлов нужен Figma OAuth. Project Hub не
+                    просит секретные API-токены в обычном поле.
+                  </p>
+                </div>
+                <button disabled>Подключить OAuth</button>
+              </div>
+              <div className="creation-summary">
+                <h3>Проект готов к созданию</h3>
+                <span>📅 {draft.tasks.length} задач</span>
+                <span>📚 {draft.wiki.length} разделов Вики</span>
+                <span>
+                  🎨{" "}
+                  {draft.figmaUrl
+                    ? "Figma добавлена"
+                    : "Figma можно подключить позже"}
+                </span>
+              </div>
+            </div>
+          )}
+        </main>
+        <footer>
+          <button onClick={() => (step === 1 ? close() : setStep(step - 1))}>
+            <ArrowLeft />
+            {step === 1 ? "Отмена" : "Назад"}
+          </button>
+          {step < 4 ? (
+            <button
+              className="primary"
+              disabled={step === 1 && !draft.name.trim()}
+              onClick={() => {
+                setMessage("");
+                setStep(step + 1);
+              }}
+            >
+              {step === 1 ? "К материалам" : "Продолжить"}
+              <ArrowRight />
+            </button>
+          ) : (
+            <button className="primary" onClick={finish}>
+              <Check />
+              Создать Project Hub
+            </button>
+          )}
+        </footer>
+      </div>
+    </div>
+  );
+}
+function GanttPreview({ tasks }: { tasks: ImportedTask[] }) {
+  return (
+    <div className="preview-card">
+      <h3>Предпросмотр импорта</h3>
+      <div className="preview-stats">
+        <span>
+          <b>{tasks.length}</b> задач
+        </span>
+        <span>
+          <b>{new Set(tasks.map((t) => t.stage)).size}</b> этапов
+        </span>
+        <span>
+          <b>{new Set(tasks.map((t) => t.owner)).size}</b> ответственных
+        </span>
+      </div>
+      <div className="mapping">
+        <b>Колонка Excel</b>
+        <b>Поле Project Hub</b>
+        <span>Задача / Этап / Title</span>
+        <span>Название задачи</span>
+        <span>Ответственный / Owner</span>
+        <span>Ответственный</span>
+        <span>Дедлайн / Status</span>
+        <span>Статус или срок</span>
+      </div>
+      <small>
+        Если сопоставление неточное, его можно изменить после создания проекта.
+      </small>
+    </div>
+  );
+}
+function WikiPreview({
+  pages,
+  update,
+}: {
+  pages: WikiPage[];
+  update: (p: WikiPage[]) => void;
+}) {
+  return (
+    <div className="preview-card">
+      <h3>Мы собрали структуру Вики</h3>
+      <div className="wiki-preview">
+        {pages.map((p, i) => (
+          <div key={p.id}>
+            <span>⋮⋮</span>
+            <input
+              value={p.title}
+              onChange={(e) =>
+                update(
+                  pages.map((x) =>
+                    x.id === p.id ? { ...x, title: e.target.value } : x,
+                  ),
+                )
+              }
+            />
+            <button onClick={() => update(pages.filter((x) => x.id !== p.id))}>
+              <X />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={() =>
+          update([
+            ...pages,
+            { id: `wiki-${Date.now()}`, title: "Новый раздел", content: [] },
+          ])
+        }
+      >
+        <Plus />
+        Добавить раздел
+      </button>
+    </div>
+  );
+}
+function Empty({ title }: { title: string }) {
+  return (
+    <div className="empty-v2">
+      <FolderOpen />
+      <h2>{title}</h2>
+      <p>Источник можно добавить в любой момент.</p>
+    </div>
+  );
+}
+
+function buildWiki(text: string, offset: number) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (!lines.length) return [];
+  const headings = lines
+    .map((line, i) => ({ line, i }))
+    .filter((x) => x.line.length < 80 && !/[.!?]$/.test(x.line))
+    .slice(0, 12);
+  if (headings.length < 2) {
+    const chunks = [];
+    for (let i = 0; i < lines.length; i += 8)
+      chunks.push({
+        id: `wiki-${offset}-${i}`,
+        title: i === 0 ? "О проекте" : `Раздел ${chunks.length + 1}`,
+        content: lines.slice(i, i + 8),
+      });
+    return chunks;
+  }
+  return headings
+    .map((h, i) => ({
+      id: `wiki-${offset}-${i}`,
+      title: h.line.replace(/^#+\s*/, ""),
+      content: lines.slice(
+        h.i + 1,
+        headings[i + 1]?.i || Math.min(h.i + 9, lines.length),
+      ),
+    }))
+    .filter((p) => p.content.length);
+}
+function icon(item: Section) {
+  return item === "Обзор" ? (
+    <LayoutDashboard />
+  ) : item === "Таймлайн" ? (
+    <CalendarDays />
+  ) : item === "Задачи" ? (
+    <ListTodo />
+  ) : item === "Вики" ? (
+    <FileText />
+  ) : item === "Ассеты" ? (
+    <Palette />
+  ) : item === "Люди" ? (
+    <Users />
+  ) : (
+    <Link2 />
+  );
+}
+function sourceIcon(kind: Source["kind"]) {
+  return kind === "gantt"
+    ? "📅"
+    : kind === "description"
+      ? "📚"
+      : kind === "figma"
+        ? "🎨"
+        : "◇";
+}
+function sourceLabel(kind: Source["kind"]) {
+  return kind === "gantt"
+    ? "ПЛАН ПРОЕКТА"
+    : kind === "description"
+      ? "ОПИСАНИЕ ПРОЕКТА"
+      : kind === "figma"
+        ? "FIGMA"
+        : "РЕЕСТР АССЕТОВ";
+}
+function formatDate(v: string) {
+  if (!v) return "Не задан";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+  }).format(new Date(v));
+}
+function daysUntil(v: string) {
+  if (!v) return 0;
+  return Math.max(
+    0,
+    Math.ceil((new Date(v).getTime() - Date.now()) / 86400000),
+  );
+}
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((x) => x[0])
+    .join("")
+    .toUpperCase();
+}
