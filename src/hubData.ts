@@ -1,4 +1,5 @@
 import type { ImportedTask } from './importProject';
+import {summerAssets} from './summerAssets';
 
 export type WikiPage={id:string;title:string;content:string[]};
 export type Asset={id:string;name:string;type:string;status:'Готово'|'В работе'|'Не найден';figmaUrl?:string;taskIds:string[];wikiIds:string[];owner?:string;deadline?:string};
@@ -19,14 +20,11 @@ export const demoProjects:Project[]=[
   {id:'goals',title:'Цели',content:['Рост stickiness аудитории через ежедневные задания и использование ключевых функций продукта.']},
   {id:'mechanics',title:'Механика',content:['Дни 1–8 — задания и приглашения. День 9 — уникальные тряхи. День 10 — итоги и антифрод. День 11 — открытие ларька.']},
   {id:'qa',title:'QA',content:['Проверить точки входа, лендинг, задания, карту, бесплатные предметы, ачивки и выдачу призов.']},
- ],assets:[
-  {id:'gnome',name:'Подарок «Гном»',type:'Цифровой подарок',status:'Готово',figmaUrl:'https://www.figma.com/design/kiH09ERBPVpQQ3vowgf42D/Vera?node-id=5240-50139',taskIds:['3'],wikiIds:['mechanics'],owner:'Даня',deadline:'14 августа'},
-  {id:'landing',name:'Лендинг',type:'Экран',status:'В работе',figmaUrl:'https://www.figma.com/design/kiH09ERBPVpQQ3vowgf42D/Vera?node-id=4596-11807',taskIds:['2'],wikiIds:['about'],owner:'Вера',deadline:'18 августа'},
-  {id:'banner',name:'Баннер запуска',type:'Коммуникация',status:'Не найден',taskIds:[],wikiIds:['about']},
- ],sources:[
+ ],assets:summerAssets,sources:[
   {id:'g1',kind:'gantt',name:'Summer camp.xlsx',status:'37 задач · подключено',updated:'сегодня, 14:32'},
   {id:'d1',kind:'description',name:'Летний лагерь Blink.docx',status:'Вики создана',updated:'вчера'},
   {id:'f1',kind:'figma',name:'Vera / Summer Camp',status:'Ссылка добавлена · нужен OAuth',updated:'вчера'},
+  {id:'a1',kind:'assets',name:'Реестр ассетов из описания проекта',status:`${summerAssets.length} материалов`,updated:'сейчас'},
  ],figmaUrl:'https://www.figma.com/design/kiH09ERBPVpQQ3vowgf42D/Vera'},
  {id:'hexes',name:'Гексы',emoji:'🗺️',description:'Развитие механики аренды гексов в Blink',deadline:'2026-09-15',progress:37,updated:'вчера, 18:10',tasks:[],wiki:[],assets:[],sources:[]},
  {id:'halloween',name:'Halloween Event',emoji:'🎃',description:'Осенняя рекламная кампания',deadline:'2026-10-31',progress:12,updated:'3 дня назад',tasks:[],wiki:[],assets:[],sources:[]},
