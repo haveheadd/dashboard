@@ -426,7 +426,12 @@ function ProjectShell({
     try {
       const pages: WikiPage[] = [];
       const importedAssets: Asset[] = [];
-      const nextSources = [...project.sources];
+      const incomingNames = new Set(Array.from(files).map((file) => file.name));
+      const nextSources = project.sources.filter(
+        (s) =>
+          s.kind !== "assets" &&
+          !(s.kind === "description" && incomingNames.has(s.name)),
+      );
       let comments = 0;
       for (const file of Array.from(files)) {
         if (/\.docx$/i.test(file.name)) {
@@ -450,7 +455,15 @@ function ProjectShell({
           updated: "сейчас",
         });
       }
-      const assets = [...project.assets, ...importedAssets].filter(
+      if (importedAssets.length)
+        nextSources.push({
+          id: `assets-${Date.now()}`,
+          kind: "assets",
+          name: "Материалы из описания проекта",
+          status: `${importedAssets.length} ссылок распознано`,
+          updated: "сейчас",
+        });
+      const assets = [...importedAssets, ...project.assets].filter(
         (item, index, all) =>
           all.findIndex(
             (x) =>
@@ -476,6 +489,8 @@ function ProjectShell({
       if (docs.current) docs.current.value = "";
     }
   };
+  const sourceKindCount = new Set(project.sources.map((source) => source.kind))
+    .size;
   return (
     <div className="project-shell">
       <aside className="project-sidebar">
@@ -504,9 +519,9 @@ function ProjectShell({
         </nav>
         <div className="source-health">
           <span>Источники</span>
-          <b>{project.sources.length}/4</b>
+          <b>{sourceKindCount}/4</b>
           <div>
-            <i style={{ width: `${(project.sources.length / 4) * 100}%` }} />
+            <i style={{ width: `${(sourceKindCount / 4) * 100}%` }} />
           </div>
         </div>
       </aside>
@@ -562,7 +577,13 @@ function ProjectShell({
         {section === "Вики" && <Wiki project={project} />}{" "}
         {section === "Ассеты" && <Assets project={project} />}{" "}
         {section === "Люди" && <People project={project} />}{" "}
-        {section === "Источники" && <Sources project={project} />}
+        {section === "Источники" && (
+          <Sources
+            project={project}
+            uploadGantt={() => gantt.current?.click()}
+            uploadDocs={() => docs.current?.click()}
+          />
+        )}
       </main>
     </div>
   );
@@ -812,13 +833,37 @@ function People({ project }: { project: Project }) {
     </div>
   );
 }
-function Sources({ project }: { project: Project }) {
+function Sources({
+  project,
+  uploadGantt,
+  uploadDocs,
+}: {
+  project: Project;
+  uploadGantt: () => void;
+  uploadDocs: () => void;
+}) {
   const all = [...project.sources];
   return (
     <div className="project-view">
       <div className="view-title">
         <h2>Источники проекта</h2>
         <p>Обновляйте Гант, описание, Figma и реестр ассетов.</p>
+      </div>
+      <div className="source-upload-grid">
+        <button onClick={uploadGantt}>
+          <UploadCloud />
+          <span>
+            <b>Загрузить Гант</b>
+            <small>XLSX, XLS, CSV или JSON</small>
+          </span>
+        </button>
+        <button onClick={uploadDocs}>
+          <FileText />
+          <span>
+            <b>Загрузить описание и ассеты</b>
+            <small>DOCX, PDF, TXT или Markdown</small>
+          </span>
+        </button>
       </div>
       <div className="sources-list">
         {all.map((s) => (
@@ -831,7 +876,18 @@ function Sources({ project }: { project: Project }) {
                 {s.status} · обновлено {s.updated}
               </p>
             </div>
-            <button>Обновить</button>
+            <button
+              onClick={
+                s.kind === "gantt"
+                  ? uploadGantt
+                  : s.kind === "description" || s.kind === "assets"
+                    ? uploadDocs
+                    : undefined
+              }
+              disabled={s.kind === "figma"}
+            >
+              {s.kind === "figma" ? "Ссылка подключена" : "Обновить файл"}
+            </button>
           </article>
         ))}
         {!all.some((s) => s.kind === "assets") && (
@@ -842,7 +898,7 @@ function Sources({ project }: { project: Project }) {
               <h3>Не загружен</h3>
               <p>Можно создать автоматически или импортировать Excel / CSV.</p>
             </div>
-            <button>Добавить</button>
+            <button onClick={uploadDocs}>Загрузить файл</button>
           </article>
         )}
       </div>
@@ -920,7 +976,9 @@ function Onboarding({
     setBusy("docs");
     const pages: WikiPage[] = [];
     const assets: Asset[] = [];
-    const sources = [...draft.sources.filter((s) => s.kind !== "description")];
+    const sources = draft.sources.filter(
+      (s) => s.kind !== "description" && s.kind !== "assets",
+    );
     let comments = 0;
     try {
       for (const file of Array.from(files)) {
@@ -943,6 +1001,14 @@ function Onboarding({
           updated: "сейчас",
         });
       }
+      if (assets.length)
+        sources.push({
+          id: `assets-${Date.now()}`,
+          kind: "assets",
+          name: "Материалы из описания проекта",
+          status: `${assets.length} ссылок распознано`,
+          updated: "сейчас",
+        });
       setDraft({ ...draft, wiki: pages, assets, sources });
       setMessage(
         `Перенесено: ${pages.length} разделов · ${assets.length} ссылок · ${comments} комментариев`,
