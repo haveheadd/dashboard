@@ -72,14 +72,35 @@ const nav: Section[] = [
   "Люди",
   "Источники",
 ];
+const assetLinkKey = (url?: string) =>
+  url?.match(/[?&]node-id=([^&]+)/)?.[1] || url || "";
+function migrateStoredProjects(stored: Project[]): Project[] {
+  const seed = demoProjects.find((project) => project.id === "summer-camp");
+  if (!seed) return stored;
+  const seedKeys = new Set(seed.assets.map((asset) => assetLinkKey(asset.figmaUrl)));
+  return stored.map((project) => {
+    if (project.id !== "summer-camp") return project;
+    const customAssets = (project.assets || []).filter(
+      (asset) => !seedKeys.has(assetLinkKey(asset.figmaUrl)),
+    );
+    return {
+      ...project,
+      assets: [...seed.assets, ...customAssets],
+      sources: [
+        ...(project.sources || []).filter((source) => source.kind !== "assets"),
+        ...seed.sources.filter((source) => source.kind === "assets"),
+      ],
+    };
+  });
+}
 
 export function App() {
   const [projects, setProjects] = useState<Project[]>(() => {
     try {
-      return (
-        JSON.parse(localStorage.getItem("project-hub-v2") || "null") ||
-        demoProjects
-      );
+      const stored = JSON.parse(
+        localStorage.getItem("project-hub-v2") || "null",
+      ) as Project[] | null;
+      return stored ? migrateStoredProjects(stored) : demoProjects;
     } catch {
       return demoProjects;
     }
